@@ -17,6 +17,7 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .init_resource::<Score>()
+        .init_resource::<HighScores>()
         .init_resource::<StarSpawnTimer>()
         .init_resource::<EnemySpawnTimer>()
         .add_event::<GameOver>()
@@ -38,6 +39,8 @@ fn main() {
         .add_systems(Update, spawn_enemies_over_time)
         .add_systems(Update, exit_game)
         .add_systems(Update, handle_game_over)
+        .add_systems(Update, update_high_scores)
+        .add_systems(Update, high_scores_updated)
         .run();
 }
 
@@ -60,6 +63,17 @@ pub struct Score {
 impl Default for Score {
     fn default() -> Score {
         Score { value: 0 }
+    }
+}
+
+#[derive(Resource, Debug)]
+pub struct HighScores {
+    pub scores: Vec<(String, u32)>,
+}
+
+impl Default for HighScores {
+    fn default() -> HighScores {
+        HighScores { scores: vec![] }
     }
 }
 
@@ -433,4 +447,22 @@ pub fn handle_game_over(mut game_over_event_reader: EventReader<GameOver>) {
         Some(event) => println!("Game over! Score: {}", event.score),
         None => (),
     };
+}
+
+pub fn update_high_scores(
+    mut game_over_event_reader: EventReader<GameOver>,
+    mut high_scores: ResMut<HighScores>,
+) {
+    match game_over_event_reader.read().next() {
+        Some(event) => {
+            high_scores.scores.push(("Player".to_string(), event.score));
+        }
+        None => (),
+    }
+}
+
+pub fn high_scores_updated(high_scores: Res<HighScores>) {
+    if high_scores.is_changed() {
+        println!("High scores: {:?}", high_scores);
+    }
 }
