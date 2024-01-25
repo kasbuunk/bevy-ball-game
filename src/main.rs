@@ -19,6 +19,7 @@ fn main() {
         .init_resource::<Score>()
         .init_resource::<StarSpawnTimer>()
         .init_resource::<EnemySpawnTimer>()
+        .add_event::<GameOver>()
         .add_systems(Startup, spawn_camera)
         .add_systems(Startup, spawn_player)
         .add_systems(Startup, spawn_enemies)
@@ -36,6 +37,7 @@ fn main() {
         .add_systems(Update, tick_enemy_spawn_timer)
         .add_systems(Update, spawn_enemies_over_time)
         .add_systems(Update, exit_game)
+        .add_systems(Update, handle_game_over)
         .run();
 }
 
@@ -85,6 +87,11 @@ impl Default for StarSpawnTimer {
             timer: Timer::from_seconds(STAR_SPAWN_TIME, TimerMode::Repeating),
         }
     }
+}
+
+#[derive(Event)]
+pub struct GameOver {
+    pub score: u32,
 }
 
 pub fn spawn_player(
@@ -295,9 +302,11 @@ fn confine_enemy_movement(
 
 pub fn enemy_hit_player(
     mut commands: Commands,
+    mut game_over_event_writer: EventWriter<GameOver>,
     mut player_query: Query<(Entity, &Transform), With<Player>>,
     enemy_query: Query<&Transform, With<Enemy>>,
     asset_server: Res<AssetServer>,
+    score: Res<Score>,
 ) {
     if let Ok((player_entity, player_transform)) = player_query.get_single_mut() {
         for enemy_transform in enemy_query.iter() {
@@ -307,7 +316,6 @@ pub fn enemy_hit_player(
             let player_radius = PLAYER_SIZE / 2.0;
             let enemy_radius = ENEMY_SIZE / 2.0;
             if distance < player_radius + enemy_radius {
-                println!("Game over!");
                 let sound_effect = "audio/explosionCrunch_000.ogg";
 
                 commands.spawn(AudioBundle {
@@ -316,6 +324,7 @@ pub fn enemy_hit_player(
                     ..default()
                 });
                 commands.entity(player_entity).despawn();
+                game_over_event_writer.send(GameOver { score: score.value });
             }
         }
     }
@@ -417,4 +426,11 @@ pub fn exit_game(
     if keyboard_input.just_pressed(KeyCode::Escape) {
         app_exit_event_writer.send(AppExit);
     }
+}
+
+pub fn handle_game_over(mut game_over_event_reader: EventReader<GameOver>) {
+    match game_over_event_reader.read().next() {
+        Some(event) => println!("Game over! Score: {}", event.score),
+        None => (),
+    };
 }
